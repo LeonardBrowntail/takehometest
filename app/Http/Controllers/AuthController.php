@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\LoginUserRequest;
 use App\Http\Requests\RegisterUserRequest;
 use App\Models\User;
+use App\Models\Wallet;
 use App\Traits\AuthApiResponses;
 use Hash;
 use Illuminate\Http\JsonResponse;
@@ -22,11 +23,17 @@ class AuthController extends Controller
     {
         $validated = $request->validated();
 
-        User::create([
+        // create account.
+        $user = User::create([
             'username' => $validated['username'],
             'email' => $validated['email'],
             'phone' => $validated['phone'],
             'password' => Hash::make($validated['password']),
+        ]);
+
+        // create wallet for that account.
+        Wallet::create([
+            'owner_id' => $user->id,
         ]);
 
         return $this->RegisterResponse();
