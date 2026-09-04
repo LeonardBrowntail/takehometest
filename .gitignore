@@ -11,6 +11,7 @@
 /storage/*.key
 /storage/pail
 /vendor
+_ide_helper.php
 .env
 .env.backup
 .env.production
