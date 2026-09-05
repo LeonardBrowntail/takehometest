@@ -271,19 +271,17 @@ List the authenticated user's transactions (10 per page).
 {
   "status": true,
   "message": "fetched transactions",
-  "data": {
-    "data": [
-      {
-        "id": "5d1f…",
-        "type": "transactions",
-        "attributes": {
-          "type": "deposit",
-          "status": "completed",
-          "description": "Transaction completed."
-        }
+  "data": [
+    {
+      "id": "5d1f…",
+      "type": "transactions",
+      "attributes": {
+        "type": "deposit",
+        "status": "completed",
+        "description": "Transaction completed."
       }
-    ]
-  }
+    }
+  ]
 }
 ```
 
