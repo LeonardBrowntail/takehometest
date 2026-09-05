@@ -15,8 +15,8 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->foreignUuid('transaction_id')->constrained('transactions', 'id')->cascadeOnDelete();
             $table->foreignUuid('wallet_id')->index()->constrained('wallets', 'id')->cascadeOnDelete();
-            $table->decimal('amount',15,2);
-            $table->enum('type',['debit', 'credit'])->index();
+            $table->bigInteger('amount');
+            $table->enum('type', ['debit', 'credit'])->index();
             $table->timestamps();
         });
     }

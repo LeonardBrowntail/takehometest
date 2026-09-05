@@ -7,19 +7,19 @@ use Illuminate\Http\Resources\JsonApi\JsonApiResource;
 
 class TransactionResource extends JsonApiResource
 {
+    /**
+     * The resource's relationships.
+     */
+    public $relationships = [
+        'ledgers',
+    ];
+
     public function toAttributes(Request $request)
     {
         return [
             'type' => $this->type,
             'status' => $this->status,
             'description' => $this->description,
-        ];
-    }
-
-    public function toRelationships(Request $request)
-    {
-        return [
-            'ledgers' => LedgerResource::class,
         ];
     }
 }

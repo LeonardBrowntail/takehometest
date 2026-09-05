@@ -11,6 +11,7 @@ use Hash;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use Str;
 
 class AuthController extends Controller
 {
@@ -34,6 +35,7 @@ class AuthController extends Controller
         // create wallet for that account.
         Wallet::create([
             'owner_id' => $user->id,
+            'nonce' => (string) Str::uuid(),
         ]);
 
         return $this->RegisterResponse();

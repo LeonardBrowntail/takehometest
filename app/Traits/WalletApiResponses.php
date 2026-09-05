@@ -15,4 +15,9 @@ trait WalletApiResponses
     {
         return $this->generalResponse(true, 'deposited', $transaction);
     }
+
+    private function transferWalletResponse(mixed $transaction)
+    {
+        return $this->generalResponse(true, 'transfered', $transaction);
+    }
 }

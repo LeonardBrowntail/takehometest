@@ -1,5 +1,6 @@
 <?php
 
+use App\Exceptions\InsufficientBalanceException;
 use App\Http\Middleware\HandleInertiaRequests;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
@@ -22,6 +23,8 @@ return Application::configure(basePath: dirname(__DIR__))
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
         ]);
+
+        $middleware->throttleApi();
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
@@ -42,7 +45,7 @@ return Application::configure(basePath: dirname(__DIR__))
             if ($request->is('api/*')) {
                 return response()->json([
                     'status' => false,
-                    'message' => 'unauthorized action',
+                    'message' => 'Unauthorized action.',
                 ], 401);
             }
         });
@@ -51,8 +54,17 @@ return Application::configure(basePath: dirname(__DIR__))
             if ($request->is('api/*')) {
                 return response()->json([
                     'status' => false,
-                    'message' => 'resource not found',
-                ], 404);
+                    'message' => 'Unauthenticated.',
+                ], 401);
+            }
+        });
+
+        $exceptions->render(function (InsufficientBalanceException $exception, Request $request) {
+            if ($request->is('api/*')) {
+                return response()->json([
+                    'status' => false,
+                    'message' => $exception->getMessage(),
+                ], 422);
             }
         });
 
@@ -60,7 +72,7 @@ return Application::configure(basePath: dirname(__DIR__))
             if ($request->is('api/*')) {
                 return response()->json([
                     'status' => false,
-                    'message' => 'something went wrong',
+                    'message' => 'Something went wrong.',
                     'errors' => $exception->getMessage(),
                 ], 500);
             }

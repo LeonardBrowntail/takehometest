@@ -2,6 +2,11 @@
 
 namespace App\Services;
 
+use App\Enums\LedgerType;
+use App\Enums\TransactionStatus;
+use App\Enums\TransactionType;
+use App\Enums\WalletStatus;
+use App\Exceptions\InsufficientBalanceException;
 use App\Models\Ledger;
 use App\Models\Transaction;
 use App\Models\Wallet;
@@ -17,56 +22,30 @@ class WalletService
      * Securely adds fund to a wallet.
      *
      * @param  Wallet  $wallet  Wallet to be filled.
-     * @param  float  $amount  Amount of funds to add.
+     * @param  int  $amount  Major amount of funds to add (ex: 100).
+     * @param  int  $cents  Cent amount of funds to add (ex: 50).
      */
-    public static function addBalance(Wallet $wallet, float $amount): ?Transaction
+    public static function deposit(Wallet $wallet, int $amount, int $cents): ?Transaction
     {
+        WalletService::AssertAmountPositive($amount, $cents);
+        WalletService::AssertValidWallet($wallet);
+
         // create new deposit transaction attempt entry.
-        $transaction = Transaction::create([
-            'type' => 'deposit',
-            'status' => 'pending',
-            'description' => 'pending deposit',
-        ]);
-        if (! $transaction) {
-            throw new Exception('unable to create a new transaction.');
-        }
+        $transaction = WalletService::RecordTransaction(TransactionType::DEPOSIT);
 
         try {
-            return DB::transaction(function () use ($wallet, $amount, $transaction) {
-                if ($amount <= 0) {
-                    throw ValidationException::withMessages(['amount' => 'Amount must not be less than or equal to 0.']);
-                }
-                if ($wallet->status != 'available') {
-                    throw new UnauthorizedException('Wallet is either frozen or suspended.', 401);
-                }
-
+            return DB::transaction(function () use ($wallet, $amount, $cents, $transaction) {
                 // create new ledger.
-                Ledger::create([
-                    'transaction_id' => $transaction->id,
-                    'wallet_id' => $wallet->id,
-                    'type' => 'debit',
-                    'amount' => $amount,
-                ]);
+                WalletService::CreateLedger($transaction, $wallet, LedgerType::DEBIT, $amount, $cents);
 
-                $newNonce = (string) Str::uuid();
-                $updated = Wallet::find($wallet->id)->whereNonce($wallet->nonce)->update([
-                    'balance' => DB::raw("balance + {$amount}"),
-                    'nonce' => $newNonce,
-                    'updated_at' => now(),
-                ]);
+                WalletService::updateWallet($wallet, $amount, $cents, LedgerType::DEBIT);
 
-                if (! $updated) {
-                    throw new Exception('Conflict occured during balance update, please try again.');
-                }
-
-                $transaction->update([
-                    'status' => 'completed',
-                ]);
+                WalletService::CompleteTransaction($transaction);
 
                 return $transaction;
             });
         } catch (Exception $e) {
-            $transaction->update(['status' => 'failed', 'description' => "Deposit failed: {$e->getMessage()}"]);
+            WalletService::FailTransaction($transaction, $e->getMessage());
 
             return null;
         }
@@ -77,85 +56,112 @@ class WalletService
      *
      * @param  Wallet  $senderWallet  Fund source.
      * @param  Wallet  $receiverWallet  Fund destination.
-     * @param  float  $amount  The amount of money transfered.
-     * @return Transaction | null
+     * @param  int  $amount  Major amount of funds to transfer (ex: 100).
+     * @param  int  $cents  Cent amount of funds to transfer (ex: 50).
      *
      * @throws Exception When there is an update collision.
      */
-    public static function transfer(Wallet $senderWallet, Wallet $receiverWallet, float $amount)
+    public static function transfer(Wallet $senderWallet, Wallet $receiverWallet, int $amount, int $cents): ?Transaction
     {
-        // create a new transaction attempt record.
-        $transaction = Transaction::create([
-            'type' => 'transfer',
-            'status' => 'pending',
-        ]);
+        WalletService::AssertValidWallet($senderWallet);
+        WalletService::AssertValidWallet($receiverWallet);
+        WalletService::AssertAmountPositive($amount, $cents);
+        WalletService::AssertWalletSufficient($senderWallet, $amount, $cents);
+
+        $transaction = WalletService::RecordTransaction(TransactionType::TRANSFER);
 
         // attempt to do the transaction.
         try {
-            if ($amount <= 0) {
-                throw ValidationException::withMessages(['amount' => 'Amount must not be less than or equal to 0.']);
-            }
-            if ($senderWallet->balance <= $amount) {
-                throw new UnauthorizedException('Sender has insufficient balance to transfer.', 401);
-            }
-            if ($senderWallet->status != 'available') {
-                throw new UnauthorizedException('Sender wallet is either frozen or suspended.', 401);
-            }
-            if ($receiverWallet->status != 'available') {
-                throw new UnauthorizedException('Receiver wallet is either frozen or suspended.', 401);
-            }
+            return DB::transaction(function () use ($senderWallet, $receiverWallet, $amount, $cents, $transaction) {
+                $senderWallet->lockForUpdate();
+                $receiverWallet->lockForUpdate();
 
-            return DB::transaction(function () use ($senderWallet, $receiverWallet, $amount, $transaction) {
-                // create new ledger for sender
-                Ledger::create([
-                    'transaction_id' => $transaction->id,
-                    'wallet_id' => $senderWallet->id,
-                    'type' => 'credit',
-                    'amount' => $amount,
-                ]);
+                WalletService::CreateLedger($transaction, $senderWallet, LedgerType::CREDIT, $amount, $cents);
 
-                // create new ledger for receiver
-                Ledger::create([
-                    'transaction_id' => $transaction->id,
-                    'wallet_id' => $receiverWallet->id,
-                    'type' => 'debit',
-                    'amount' => $amount,
-                ]);
+                WalletService::CreateLedger($transaction, $receiverWallet, LedgerType::DEBIT, $amount, $cents);
 
-                // update sender balance
-                $senderNewNonce = (string) Str::uuid();
-                $senderUpdated = Wallet::find($senderWallet->id)->where('nonce', $senderWallet->nonce)->update([
-                    'balance' => DB::raw("balance - {$amount}"),
-                    'nonce' => $senderNewNonce,
-                    'updated_at' => now(),
-                ]);
+                WalletService::updateWallet($senderWallet, $amount, $cents, LedgerType::CREDIT);
 
-                if (! $senderUpdated) {
-                    throw new Exception('Sender conflict, please try again.', 409);
-                }
+                WalletService::updateWallet($receiverWallet, $amount, $cents, LedgerType::DEBIT);
 
-                $receiverNewNonce = (string) Str::uuid();
-                $receiverUpdated = Wallet::find($receiverWallet->id)->where('nonce', $receiverWallet->nonce)->update([
-                    'balance' => DB::raw("balance + {$amount}"),
-                    'nonce' => $receiverNewNonce,
-                    'updated_at' => now(),
-                ]);
-
-                if (! $receiverUpdated) {
-                    throw new Exception('Receiver conflict, please try again.', 409);
-                }
-
-                $transaction->update(['status' => 'completed']);
+                WalletService::CompleteTransaction($transaction);
 
                 return $transaction;
             });
         } catch (Exception $e) {
-            $transaction->update([
-                'status' => 'failed',
-                'description' => "Transfer failure: {$e->getMessage()}",
-            ]);
+            WalletService::FailTransaction($transaction, $e->getMessage());
 
             return null;
+        }
+    }
+
+    private static function RecordTransaction(TransactionType $type)
+    {
+        return Transaction::create([
+            'type' => $type,
+            'status' => TransactionStatus::PENDING,
+            'description' => 'Pending transaction',
+        ]);
+    }
+
+    private static function CompleteTransaction(Transaction $transaction)
+    {
+        $transaction->update(['status' => TransactionStatus::COMPLETED, 'description' => 'Transaction completed.']);
+    }
+
+    private static function FailTransaction(Transaction $transaction, string $reason)
+    {
+        $transaction->update([
+            'status' => TransactionStatus::FAILED,
+            'description' => "Failed transaction: {$reason}",
+        ]);
+    }
+
+    private static function CreateLedger(Transaction $transaction, Wallet $wallet, LedgerType $type, int $amount, int $cents)
+    {
+        Ledger::create([
+            'transaction_id' => $transaction->id,
+            'wallet_id' => $wallet->id,
+            'type' => $type,
+            'amount' => MoneyService::totalCents($amount, $cents),
+        ]);
+    }
+
+    private static function updateWallet(Wallet $wallet, int $amount, int $cents, LedgerType $type)
+    {
+        $newNonce = (string) Str::uuid();
+        $value = MoneyService::totalCents($amount, $cents);
+        if ($type === LedgerType::DEBIT) {
+            $updated = Wallet::where('id', $wallet->id)->where('nonce', $wallet->nonce)->increment('amount', $value, ['nonce' => $newNonce]);
+        } else {
+            $updated = Wallet::where('id', $wallet->id)->where('nonce', $wallet->nonce)->decrement('amount', $value, ['nonce' => $newNonce]);
+        }
+        if (! $updated) {
+            throw new Exception('Conflict occured during balance update, please try again.');
+        }
+    }
+
+    private static function AssertAmountPositive(int $amount, int $cents)
+    {
+        if (MoneyService::totalCents($amount, $cents) <= 0) {
+            throw ValidationException::withMessages(['amount' => 'Amount cannot be less than or equal to 0.']);
+        }
+    }
+
+    private static function AssertValidWallet(Wallet $wallet)
+    {
+        if (! $wallet || ! ($wallet instanceof Wallet)) {
+            throw new UnauthorizedException('Wallet instance not found.');
+        }
+        if ($wallet->status !== WalletStatus::ACTIVE) {
+            throw new UnauthorizedException("Wallet ({$wallet->id}) is either frozen or suspended.");
+        }
+    }
+
+    private static function AssertWalletSufficient(Wallet $wallet, int $amount, int $cents)
+    {
+        if ($wallet->amount < MoneyService::totalCents($amount, $cents)) {
+            throw new InsufficientBalanceException('Insufficient balance.');
         }
     }
 }

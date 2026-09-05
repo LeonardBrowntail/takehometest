@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('transactions', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->enum('type', ['transfer', 'deposit', 'withdrawal']);
+            $table->enum('type', ['transfer', 'deposit']);
             $table->enum('status', ['completed', 'pending', 'failed'])->default('pending');
             $table->string('description')->nullable();
             $table->timestamps();

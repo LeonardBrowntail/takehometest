@@ -16,11 +16,11 @@ return new class extends Migration
             $table->foreignId('owner_id')->unique()->constrained('users')->cascadeOnDelete();
 
             // financials
-            $table->decimal('balance',15,2)->default(0.00);
+            $table->bigInteger('amount')->default(0);
 
             // security
             $table->enum('status', ['active', 'frozen', 'suspended'])->default('active'); // active, frozen, suspended
-            $table->string('nonce',64)->nullable();
+            $table->string('nonce', 64)->default((string) Str::uuid());
 
             // timestamps
             $table->timestamps();

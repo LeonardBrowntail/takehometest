@@ -2,18 +2,18 @@
 
 namespace App\Models;
 
+use App\Enums\LedgerType;
+use App\Enums\WalletStatus;
 use Carbon\CarbonImmutable;
-use Database\Factories\WalletFactory;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * @property string $id
  * @property int $owner_id
- * @property numeric $balance
+ * @property int $amount
  * @property string $status
  * @property string|null $nonce
  * @property CarbonImmutable|null $created_at
@@ -30,7 +30,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Wallet newQuery()
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Wallet onlyTrashed()
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Wallet query()
- * @method static \Illuminate\Database\Eloquent\Builder<static>|Wallet whereBalance($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Wallet whereAmount($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Wallet whereCreatedAt($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Wallet whereDeletedAt($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Wallet whereId($value)
@@ -45,18 +45,17 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class Wallet extends Model
 {
-    /** @use HasFactory<WalletFactory> */
-    use HasFactory, HasUuids, SoftDeletes;
+    use HasUuids, SoftDeletes;
 
     protected $fillable = [
         'owner_id',
-        'balance',
+        'amount',
         'status',
         'nonce',
     ];
 
     protected $casts = [
-        'balance' => 'decimal:4',
+        'status' => WalletStatus::class,
     ];
 
     public function owner()
@@ -74,11 +73,11 @@ class Wallet extends Model
         return $this->hasManyThrough(Transaction::class, Ledger::class);
     }
 
-    public function getCalculatedBalance(): float
+    public function getCalculatedBalance(): int
     {
-        $debits = $this->ledgers()->where('type', 'debit')->sum('amount');
-        $credits = $this->ledgers()->where('type', 'credit')->sum('amount');
+        $debits = $this->ledgers()->where('type', LedgerType::DEBIT->value)->sum('amount');
+        $credits = $this->ledgers()->where('type', LedgerType::CREDIT->value)->sum('amount');
 
-        return (float) ($debits - $credits);
+        return (int) ($debits - $credits);
     }
 }

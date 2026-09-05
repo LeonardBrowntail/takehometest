@@ -24,7 +24,7 @@ class TransactionController extends Controller
             throw new Exception("Unable to find user's wallet.");
         }
 
-        $transactions = $wallet->transactions;
+        $transactions = $wallet->transactions()->paginate(10)->withQueryString();
 
         return $this->showTransactionsResponse($transactions->toResourceCollection());
     }

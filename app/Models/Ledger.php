@@ -2,10 +2,9 @@
 
 namespace App\Models;
 
+use App\Enums\LedgerType;
 use Carbon\CarbonImmutable;
-use Database\Factories\LedgerFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -16,8 +15,9 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $type
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
- * @property-read \App\Models\Transaction $transaction
- * @property-read \App\Models\Wallet|null $wallet
+ * @property-read Transaction $transaction
+ * @property-read Wallet|null $wallet
+ *
  * @method static \Database\Factories\LedgerFactory factory($count = null, $state = [])
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Ledger newModelQuery()
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Ledger newQuery()
@@ -29,12 +29,12 @@ use Illuminate\Database\Eloquent\Model;
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Ledger whereType($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Ledger whereUpdatedAt($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Ledger whereWalletId($value)
+ *
  * @mixin \Eloquent
  */
 class Ledger extends Model
 {
-    /** @use HasFactory<LedgerFactory> */
-    use HasFactory, HasUuids;
+    use HasUuids;
 
     protected $fillable = [
         'wallet_id',
@@ -44,7 +44,7 @@ class Ledger extends Model
     ];
 
     protected $casts = [
-        'amount' => 'decimal:2',
+        'type' => LedgerType::class,
     ];
 
     public function wallet()
