@@ -70,7 +70,7 @@ class Wallet extends Model
 
     public function transactions()
     {
-        return $this->hasManyThrough(Transaction::class, Ledger::class);
+        return $this->hasManyThrough(Transaction::class, Ledger::class, 'wallet_id', 'id', 'id', 'transaction_id');
     }
 
     // public function getCalculatedBalance(): int
