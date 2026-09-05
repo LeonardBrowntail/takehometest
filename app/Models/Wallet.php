@@ -73,11 +73,11 @@ class Wallet extends Model
         return $this->hasManyThrough(Transaction::class, Ledger::class);
     }
 
-    public function getCalculatedBalance(): int
-    {
-        $debits = $this->ledgers()->where('type', LedgerType::DEBIT->value)->sum('amount');
-        $credits = $this->ledgers()->where('type', LedgerType::CREDIT->value)->sum('amount');
+    // public function getCalculatedBalance(): int
+    // {
+    //     $debits = $this->ledgers()->where('type', LedgerType::DEBIT->value)->sum('amount');
+    //     $credits = $this->ledgers()->where('type', LedgerType::CREDIT->value)->sum('amount');
 
-        return (int) ($debits - $credits);
-    }
+    //     return (int) ($debits - $credits);
+    // }
 }

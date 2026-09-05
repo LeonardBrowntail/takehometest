@@ -46,8 +46,7 @@ class WalletService
             });
         } catch (Exception $e) {
             WalletService::FailTransaction($transaction, $e->getMessage());
-
-            return null;
+            throw $e;
         }
     }
 
@@ -66,15 +65,13 @@ class WalletService
         WalletService::AssertValidWallet($senderWallet);
         WalletService::AssertValidWallet($receiverWallet);
         WalletService::AssertAmountPositive($amount, $cents);
-        WalletService::AssertWalletSufficient($senderWallet, $amount, $cents);
 
         $transaction = WalletService::RecordTransaction(TransactionType::TRANSFER);
 
         // attempt to do the transaction.
         try {
             return DB::transaction(function () use ($senderWallet, $receiverWallet, $amount, $cents, $transaction) {
-                $senderWallet->lockForUpdate();
-                $receiverWallet->lockForUpdate();
+                WalletService::AssertWalletSufficient($senderWallet, $amount, $cents);
 
                 WalletService::CreateLedger($transaction, $senderWallet, LedgerType::CREDIT, $amount, $cents);
 
@@ -90,8 +87,7 @@ class WalletService
             });
         } catch (Exception $e) {
             WalletService::FailTransaction($transaction, $e->getMessage());
-
-            return null;
+            throw $e;
         }
     }
 

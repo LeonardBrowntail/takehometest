@@ -16,7 +16,7 @@ return new class extends Migration
             $table->foreignId('owner_id')->unique()->constrained('users')->cascadeOnDelete();
 
             // financials
-            $table->bigInteger('amount')->default(0);
+            $table->unsignedBigInteger('amount')->default(0);
 
             // security
             $table->enum('status', ['active', 'frozen', 'suspended'])->default('active'); // active, frozen, suspended
